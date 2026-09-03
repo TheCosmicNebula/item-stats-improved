@@ -1,0 +1,80 @@
+/*
+ * Copyright (c) 2016-2018, Adam <Adam@sigterm.info>
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *
+ * 1. Redistributions of source code must retain the above copyright notice, this
+ *    list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright notice,
+ *    this list of conditions and the following disclaimer in the documentation
+ *    and/or other materials provided with the distribution.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+ * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
+ * ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+ * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+ * ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+ * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+package com.itemstatsimproved.potions;
+
+import com.google.common.annotations.VisibleForTesting;
+import lombok.RequiredArgsConstructor;
+import net.runelite.api.Client;
+import com.itemstatsimproved.Effect;
+import com.itemstatsimproved.SimpleStatBoost;
+import com.itemstatsimproved.StatChange;
+import com.itemstatsimproved.StatsChanges;
+import com.itemstatsimproved.potions.PrayerPotion;
+import com.itemstatsimproved.stats.Stat;
+
+import java.util.Comparator;
+import java.util.stream.Stream;
+
+import static com.itemstatsimproved.Builders.perc;
+import static com.itemstatsimproved.stats.Stats.*;
+
+@RequiredArgsConstructor
+public class SuperRestore implements Effect
+{
+	private static final Stat[] superRestoreStats = {
+		ATTACK, DEFENCE, STRENGTH, RANGED, MAGIC, COOKING,
+		WOODCUTTING, FLETCHING, FISHING, FIREMAKING, CRAFTING, SMITHING, MINING,
+		HERBLORE, AGILITY, THIEVING, SLAYER, FARMING, RUNECRAFT, HUNTER,
+		CONSTRUCTION
+	};
+
+	@VisibleForTesting
+	public final double percR; //percentage restored
+	private final int delta;
+
+	@Override
+	public StatsChanges calculate(Client client)
+	{
+		StatsChanges changes = new StatsChanges(0);
+
+		SimpleStatBoost calc = new SimpleStatBoost(null, false, perc(percR, delta));
+		com.itemstatsimproved.potions.PrayerPotion prayer = new PrayerPotion(delta, percR);
+		changes.setStatChanges(Stream.concat(
+			Stream.of(prayer.effect(client)),
+			Stream.of(superRestoreStats)
+				.filter(stat -> stat.getValue(client) < stat.getMaximum(client))
+				.map(stat ->
+				{
+					calc.setStat(stat);
+					return calc.effect(client);
+				})
+			).toArray(StatChange[]::new));
+		changes.setPositivity(Stream.of(changes.getStatChanges())
+			.map(sc -> sc.getPositivity())
+			.max(Comparator.naturalOrder()).get());
+		return changes;
+	}
+
+}
